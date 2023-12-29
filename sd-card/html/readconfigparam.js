@@ -535,6 +535,12 @@ function WriteConfigININew()
                               text = text + " " + NUMBERS[_roi]["analog"][_roiddet]["dx"];
                               text = text + " " + NUMBERS[_roi]["analog"][_roiddet]["dy"];
                               text = text + " " + NUMBERS[_roi]["analog"][_roiddet]["CCW"];
+                              if (NUMBERS[_roi]["analog"][_roiddet]["parallax_x"] != "")
+                              {
+                                   text = text + " " + NUMBERS[_roi]["analog"][_roiddet]["parallax_x"];
+                                   text = text + " " + NUMBERS[_roi]["analog"][_roiddet]["parallax_y"];
+                                   text = text + " " + NUMBERS[_roi]["analog"][_roiddet]["value_offset"];
+                              }
                               config_split.push(text);
                          }
                     }
@@ -606,6 +612,11 @@ function ExtractROIs(_aktline, _type){
      abc["CCW"] = "false";
      if (linesplit.length >= 6)
           abc["CCW"] = linesplit[5];
+     if (linesplit.length >= 9){
+          abc["parallax_x"] = linesplit[6];
+          abc["parallax_y"] = linesplit[7];
+          abc["value_offset"] = linesplit[8];
+     }
 }
 
 
