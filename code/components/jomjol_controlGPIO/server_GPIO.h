@@ -36,7 +36,7 @@ typedef enum {
 
 class GpioPin {
 public:
-    GpioPin(gpio_num_t gpio, const char* name, gpio_pin_mode_t mode, gpio_int_type_t interruptType, uint8_t dutyResolution, std::string mqttTopic, bool httpEnable);
+    GpioPin(gpio_num_t gpio, const char* name, gpio_pin_mode_t mode, gpio_int_type_t interruptType, uint8_t dutyResolution, std::string mqttTopic, bool httpEnable, int pulseDebounceTimeMs);
     ~GpioPin();
 
     void init();
@@ -57,7 +57,11 @@ private:
     gpio_pin_mode_t _mode;
     gpio_int_type_t _interruptType;
     std::string _mqttTopic;
+    std::string _mqttTopicCounter;
+    int _pulseDebounceTimeMs = -1;
     int currentState = -1;
+    unsigned long pulseCount = 0;
+    TickType_t lastPulse = 0;
 };
 
 esp_err_t callHandleHttpRequest(httpd_req_t *req);

@@ -29,13 +29,16 @@
 static const char *TAG = "GPIO";
 QueueHandle_t gpio_queue_handle = NULL;
 
-GpioPin::GpioPin(gpio_num_t gpio, const char* name, gpio_pin_mode_t mode, gpio_int_type_t interruptType, uint8_t dutyResolution, std::string mqttTopic, bool httpEnable) 
+GpioPin::GpioPin(gpio_num_t gpio, const char* name, gpio_pin_mode_t mode, gpio_int_type_t interruptType, uint8_t dutyResolution, std::string mqttTopic, bool httpEnable, int pulseDebounceTimeMs) 
 {
     _gpio = gpio;
     _name = name; 
     _mode = mode;
     _interruptType = interruptType;    
+    _pulseDebounceTimeMs = pulseDebounceTimeMs;
     _mqttTopic = mqttTopic;
+    if( _pulseDebounceTimeMs >= 0 )
+        _mqttTopicCounter = mqttTopic + "/counter";
 }
 
 GpioPin::~GpioPin()
@@ -82,11 +85,14 @@ static void gpioHandlerTask(void *arg) {
 void GpioPin::gpioInterrupt(int value) {
 #ifdef ENABLE_MQTT    
     if (_mqttTopic.compare("") != 0) {
-        ESP_LOGD(TAG, "gpioInterrupt %s %d", _mqttTopic.c_str(), value);
+        ESP_LOGD(TAG, "gpioInterrupt %s %d %lu", _mqttTopic.c_str(), value, pulseCount);
 
         MQTTPublish(_mqttTopic, value ? "true" : "false", 1);        
+        if( _mqttTopicCounter.empty() == false )
+            MQTTPublish(_mqttTopicCounter, std::to_string(pulseCount), 1);
     }
 #endif //ENABLE_MQTT
+
     currentState = value;
 }
 
@@ -368,12 +374,16 @@ bool GpioHandler::readConfig()
             } else {
                 sprintf(gpioName, "GPIO%d", gpioNr);
             }
+            int pulseDebounceTimeMs = -1;
+            if (splitted.size() >= 8) {
+                pulseDebounceTimeMs = atoi(splitted[7].c_str());
+            }
 #ifdef ENABLE_MQTT            
             std::string mqttTopic = mqttEnabled ? (mainTopicMQTT + "/" + gpioName) : "";
 #else // ENABLE_MQTT
             std::string mqttTopic = "";
 #endif // ENABLE_MQTT
-            GpioPin* gpioPin = new GpioPin(gpioNr, gpioName, pinMode, intType,dutyResolution, mqttTopic, httpEnabled);
+            GpioPin* gpioPin = new GpioPin(gpioNr, gpioName, pinMode, intType,dutyResolution, mqttTopic, httpEnabled, pulseDebounceTimeMs);
             (*gpioMap)[gpioNr] = gpioPin;
 
             if (pinMode == GPIO_PIN_MODE_EXTERNAL_FLASH_WS281X)
