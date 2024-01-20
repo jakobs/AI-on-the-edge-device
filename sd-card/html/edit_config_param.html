@@ -1382,6 +1382,17 @@
 			<td></td>
 		</tr>
 
+		<tr class="GPIO_IO12 GPIO_item expert">
+			<td class="indent2">
+				<span class="GPIO_IO12 GPIO_item">GPIO12 Pulse Count Debounce Time</span>
+			</td>
+			<td><input required type="number" id="GPIO_IO12_value7" min="-1" max="10000"
+					oninput="(!validity.rangeUnderflow||(value=-1)) && (!validity.rangeOverflow||(value=10000)) && 
+						(!validity.stepMismatch||(value=parseInt(this.value)));"><span class="GPIO_IO12 GPIO_item">ms</span>
+			</td>
+			<td></td>
+		</tr>
+
 		<tr class="GPIO_item" id="wstypeex3">
 			<td class="indent1">
 				<span class="GPIO_IO12 GPIO_item" id="GPIO_LEDType_text">LED Type (NeoPixel)</span>
