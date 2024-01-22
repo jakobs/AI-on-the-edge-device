@@ -29,16 +29,39 @@
 static const char *TAG = "GPIO";
 QueueHandle_t gpio_queue_handle = NULL;
 
+PulseCounter::PulseCounter(int pulseStableTimeMs) {
+    _pulseStableTime = pdMS_TO_TICKS(pulseStableTimeMs);
+}
+
+bool PulseCounter::trigger( bool gpioValue ) {
+    TickType_t now = xTaskGetTickCount();
+    if( _value == gpioValue ) {
+        _lastTime = now;
+    } else {
+        if( now - _lastTime > _pulseStableTime ) {
+            _value = gpioValue;
+            if( _value )
+            {
+                _count++;
+                _lastTime = now;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 GpioPin::GpioPin(gpio_num_t gpio, const char* name, gpio_pin_mode_t mode, gpio_int_type_t interruptType, uint8_t dutyResolution, std::string mqttTopic, bool httpEnable, int pulseDebounceTimeMs) 
 {
     _gpio = gpio;
     _name = name; 
     _mode = mode;
     _interruptType = interruptType;    
-    _pulseDebounceTimeMs = pulseDebounceTimeMs;
     _mqttTopic = mqttTopic;
-    if( _pulseDebounceTimeMs >= 0 )
+    if( pulseDebounceTimeMs > 0 ) {
+        _pulseCounter = new PulseCounter(pulseDebounceTimeMs);
         _mqttTopicCounter = mqttTopic + "/counter";
+    }
 }
 
 GpioPin::~GpioPin()
@@ -78,18 +101,16 @@ static void gpioHandlerTask(void *arg) {
         }
 
         ((GpioHandler*)arg)->taskHandler();
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
 void GpioPin::gpioInterrupt(int value) {
 #ifdef ENABLE_MQTT    
     if (_mqttTopic.compare("") != 0) {
-        ESP_LOGD(TAG, "gpioInterrupt %s %d %lu", _mqttTopic.c_str(), value, pulseCount);
+        ESP_LOGD(TAG, "gpioInterrupt %s %d", _mqttTopic.c_str(), value);
 
         MQTTPublish(_mqttTopic, value ? "true" : "false", 1);        
-        if( _mqttTopicCounter.empty() == false )
-            MQTTPublish(_mqttTopicCounter, std::to_string(pulseCount), 1);
     }
 #endif //ENABLE_MQTT
 
@@ -162,6 +183,19 @@ void GpioPin::publishState() {
         MQTTPublish(_mqttTopic, newState ? "true" : "false", 1);
 #endif //ENABLE_MQTT
         currentState = newState;
+    }
+}
+
+void GpioPin::pulseHandler() {
+    if( hasPulseCounter() ) {
+        bool gpio_value = gpio_get_level(_gpio);
+        if( _pulseCounter->trigger(gpio_value) ) {
+            unsigned long count = _pulseCounter->getCount();
+            ESP_LOGD(TAG, "GpioPin::pulseHandler %lu", count);
+            if (_mqttTopicCounter.compare("") != 0) {
+                MQTTPublish(_mqttTopicCounter, std::to_string(count).c_str(), 1);
+            }
+        }
     }
 }
 
@@ -268,10 +302,21 @@ void GpioHandler::init()
 }
 
 void GpioHandler::taskHandler() {
+    bool publish = false;
+    if( xTaskGetTickCount() - _publishedTime > pdMS_TO_TICKS(1000) ) {
+        publish = true;
+        _publishedTime = xTaskGetTickCount();
+    }
+
     if (gpioMap != NULL) {
         for(std::map<gpio_num_t, GpioPin*>::iterator it = gpioMap->begin(); it != gpioMap->end(); ++it) {
             if ((it->second->getInterruptType() == GPIO_INTR_DISABLE))
-                it->second->publishState();
+            {
+                if( publish )
+                    it->second->publishState();
+                
+                it->second->pulseHandler();
+            }
         }
     }
 }

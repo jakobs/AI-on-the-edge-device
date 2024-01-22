@@ -34,6 +34,21 @@ typedef enum {
     GPIO_SET_SOURCE_HTTP  = 2,
 } gpio_set_source;
 
+class PulseCounter {
+public:
+    PulseCounter(int pulseStableTimeMs);
+
+    bool trigger( bool gpioValue );
+    unsigned long getCount() { return _count; }
+    void reset() { _count = 0; }
+
+protected:
+    TickType_t _pulseStableTime = 0;
+    unsigned long _count = 0;
+    bool _value = 0;
+    TickType_t _lastTime = 0;
+};
+
 class GpioPin {
 public:
     GpioPin(gpio_num_t gpio, const char* name, gpio_pin_mode_t mode, gpio_int_type_t interruptType, uint8_t dutyResolution, std::string mqttTopic, bool httpEnable, int pulseDebounceTimeMs);
@@ -51,6 +66,9 @@ public:
     gpio_pin_mode_t getMode() { return _mode; }
     gpio_num_t getGPIO(){return _gpio;};
 
+    bool hasPulseCounter() { return _pulseCounter; }
+    void pulseHandler();
+
 private:
     gpio_num_t _gpio;
     const char* _name;
@@ -58,10 +76,8 @@ private:
     gpio_int_type_t _interruptType;
     std::string _mqttTopic;
     std::string _mqttTopicCounter;
-    int _pulseDebounceTimeMs = -1;
+    PulseCounter *_pulseCounter = NULL;
     int currentState = -1;
-    unsigned long pulseCount = 0;
-    TickType_t lastPulse = 0;
 };
 
 esp_err_t callHandleHttpRequest(httpd_req_t *req);
@@ -90,6 +106,7 @@ private:
     std::map<gpio_num_t, GpioPin*> *gpioMap = NULL;
     TaskHandle_t xHandleTaskGpio = NULL;
     bool _isEnabled = false;
+    TickType_t _publishedTime = 0;
 
     int LEDNumbers = 2;
     Rgb LEDColor = Rgb{ 255, 255, 255 };
